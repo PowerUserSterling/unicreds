@@ -1,26 +1,26 @@
 package unicreds
 
 import (
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/kms"
-	"github.com/aws/aws-sdk-go/service/kms/kmsiface"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	//"github.com/aws/aws-sdk-go-v2/aws/session"
+	"github.com/aws/aws-sdk-go-v2/service/kms"
+	"github.com/aws/aws-sdk-go-v2/service/kms/kmsiface"
 )
 
 var kmsSvc kmsiface.KMSAPI
 
 func init() {
-	kmsSvc = kms.New(session.New(), aws.NewConfig())
+	kmsSvc = kms.New(aws.NewConfig())
 }
 
 // SetKMSConfig override the default aws configuration
 func SetKMSConfig(config *aws.Config) {
-	kmsSvc = kms.New(session.New(), config)
+	kmsSvc = kms.New(config)
 }
 
-func SetKMSSession(sess *session.Session) {
+/*func SetKMSSession(sess *session.Session) {
 	kmsSvc = kms.New(sess)
-}
+}*/
 
 // DataKey which contains the details of the KMS key
 type DataKey struct {

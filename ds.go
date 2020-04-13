@@ -13,11 +13,11 @@ import (
 
 	"github.com/apex/log"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/dynamodb"
-	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/aws/awserr"
+	//"github.com/aws/aws-sdk-go-v2/aws/session"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/dynamodbiface"
 )
 
 const (
@@ -32,7 +32,7 @@ const (
 )
 
 var (
-	dynamoSvc dynamodbiface.DynamoDBAPI
+	dynamoSvc dynamodbiface.ClientAPI
 
 	// ErrSecretNotFound returned when unable to find the specified secret in dynamodb
 	ErrSecretNotFound = errors.New("Secret Not Found")
@@ -45,17 +45,17 @@ var (
 )
 
 func init() {
-	dynamoSvc = dynamodb.New(session.New(), aws.NewConfig())
+	dynamoSvc = dynamodb.New(aws.NewConfig())
 }
 
 // SetDynamoDBConfig override the default aws configuration
 func SetDynamoDBConfig(config *aws.Config) {
-	dynamoSvc = dynamodb.New(session.New(), config)
+	dynamoSvc = dynamodb.New(config)
 }
 
-func SetDynamoDBSession(sess *session.Session) {
+/*func SetDynamoDBSession(sess *session.Session) {
 	dynamoSvc = dynamodb.New(sess)
-}
+}*/
 
 // Credential managed credential information
 type Credential struct {
@@ -168,7 +168,7 @@ func GetHighestVersionSecret(tableName *string, name string, encContext *Encrypt
 		ExpressionAttributeNames: map[string]*string{
 			"#N": aws.String("name"),
 		},
-		ExpressionAttributeValues: map[string]*dynamodb.AttributeValue{
+		ExpressionAttributeValues: map[string]dynamodb.AttributeValue{
 			":name": {
 				S: aws.String(name),
 			},
@@ -203,7 +203,7 @@ func GetSecret(tableName *string, name, version string, encContext *EncryptionCo
 	log.Debug("Getting secret")
 
 	params := &dynamodb.GetItemInput{
-		Key: map[string]*dynamodb.AttributeValue{
+		Key: map[string]dynamodb.AttributeValue{
 			"name":    {S: aws.String(name)},
 			"version": {S: aws.String(version)},
 		},
@@ -235,7 +235,7 @@ func GetHighestVersion(tableName *string, name string) (string, error) {
 		ExpressionAttributeNames: map[string]*string{
 			"#N": aws.String("name"),
 		},
-		ExpressionAttributeValues: map[string]*dynamodb.AttributeValue{
+		ExpressionAttributeValues: map[string]dynamodb.AttributeValue{
 			":name": {
 				S: aws.String(name),
 			},
@@ -268,8 +268,8 @@ func GetHighestVersion(tableName *string, name string) (string, error) {
 func ListSecrets(tableName *string, allVersions bool) ([]*Credential, error) {
 	log.Debug("Listing secrets")
 
-	var items []map[string]*dynamodb.AttributeValue
-	var lastEvaluatedKey map[string]*dynamodb.AttributeValue
+	var items []map[string]dynamodb.AttributeValue
+	var lastEvaluatedKey map[string]dynamodb.AttributeValue
 
 	for {
 		res, err := dynamoSvc.Scan(&dynamodb.ScanInput{
@@ -313,8 +313,8 @@ func ListSecrets(tableName *string, allVersions bool) ([]*Credential, error) {
 func GetAllSecrets(tableName *string, allVersions bool, encContext *EncryptionContextValue) ([]*DecryptedCredential, error) {
 	log.Debug("Getting all secrets")
 
-	var items []map[string]*dynamodb.AttributeValue
-	var lastEvaluatedKey map[string]*dynamodb.AttributeValue
+	var items []map[string]dynamodb.AttributeValue
+	var lastEvaluatedKey map[string]dynamodb.AttributeValue
 
 	for {
 		res, err := dynamoSvc.Scan(&dynamodb.ScanInput{
@@ -446,7 +446,7 @@ func DeleteSecret(tableName *string, name string) error {
 		ExpressionAttributeNames: map[string]*string{
 			"#N": aws.String("name"),
 		},
-		ExpressionAttributeValues: map[string]*dynamodb.AttributeValue{
+		ExpressionAttributeValues: map[string]dynamodb.AttributeValue{
 			":name": {
 				S: aws.String(name),
 			},
@@ -472,7 +472,7 @@ func DeleteSecret(tableName *string, name string) error {
 
 		_, err = dynamoSvc.DeleteItem(&dynamodb.DeleteItemInput{
 			TableName: tableName,
-			Key: map[string]*dynamodb.AttributeValue{
+			Key: map[string]dynamodb.AttributeValue{
 				"name": {
 					S: aws.String(cred.Name),
 				},
@@ -564,7 +564,7 @@ func decryptCredential(cred *Credential, encContext *EncryptionContextValue) (*D
 	return &DecryptedCredential{Credential: cred, Secret: plainText}, nil
 }
 
-func decodeCredential(items []map[string]*dynamodb.AttributeValue) ([]*Credential, error) {
+func decodeCredential(items []map[string]dynamodb.AttributeValue) ([]*Credential, error) {
 
 	results := make([]*Credential, 0, len(items))
 

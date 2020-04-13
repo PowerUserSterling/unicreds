@@ -5,13 +5,14 @@ import (
 
 	"github.com/apex/log"
 	"github.com/apex/log/handlers/cli"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/service/dynamodb"
-	"github.com/aws/aws-sdk-go/service/kms"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/aws/awserr"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"github.com/versent/unicreds/mocks"
+	dynamodbiface "github.com/PowerUserSterling/unicreds/mocks/dynamodbiface"
+	kmsiface "github.com/PowerUserSterling/unicreds/mocks/kmsiface"
 )
 
 var (
@@ -218,9 +219,9 @@ func TestListSecrets(t *testing.T) {
 	assert.Len(t, ds, 1)
 }
 
-func configureMock() (*mocks.DynamoDBAPI, *mocks.KMSAPI) {
-	dsMock := &mocks.DynamoDBAPI{}
-	kmsMock := &mocks.KMSAPI{}
+func configureMock() (*dynamodbiface.MockClientAPI, *kmsiface.KMSClientAPI) {
+	dsMock := &dynamodbiface.MockClientAPI{}
+	kmsMock := &kmsiface.KMSClientAPI{}
 
 	dynamoSvc = dsMock
 	kmsSvc = kmsMock
