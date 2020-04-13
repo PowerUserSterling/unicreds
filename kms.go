@@ -1,22 +1,23 @@
 package unicreds
 
 import (
+	"context"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	//"github.com/aws/aws-sdk-go-v2/aws/session"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/aws/aws-sdk-go-v2/service/kms/kmsiface"
 )
 
-var kmsSvc kmsiface.KMSAPI
+var kmsSvc kmsiface.ClientAPI
 
 func init() {
-	kmsSvc = kms.New(aws.NewConfig())
+	kmsSvc = kms.New(*aws.NewConfig())
 }
 
 // SetKMSConfig override the default aws configuration
-func SetKMSConfig(config *aws.Config) {
+/*func SetKMSConfig(config aws.Config) {
 	kmsSvc = kms.New(config)
-}
+}*/
 
 /*func SetKMSSession(sess *session.Session) {
 	kmsSvc = kms.New(sess)
@@ -36,11 +37,11 @@ func GenerateDataKey(alias string, encContext *EncryptionContextValue, size int)
 	params := &kms.GenerateDataKeyInput{
 		KeyId:             aws.String(alias),
 		EncryptionContext: *encContext,
-		GrantTokens:       []*string{},
+		GrantTokens:       []string{},
 		NumberOfBytes:     aws.Int64(numberOfBytes),
 	}
 
-	resp, err := kmsSvc.GenerateDataKey(params)
+	resp, err := kmsSvc.GenerateDataKeyRequest(params).Send (context.Background ())
 
 	if err != nil {
 		return nil, err
@@ -58,9 +59,9 @@ func DecryptDataKey(ciphertext []byte, encContext *EncryptionContextValue) (*Dat
 	params := &kms.DecryptInput{
 		CiphertextBlob:    ciphertext,
 		EncryptionContext: *encContext,
-		GrantTokens:       []*string{},
+		GrantTokens:       []string{},
 	}
-	resp, err := kmsSvc.Decrypt(params)
+	resp, err := kmsSvc.DecryptRequest(params).Send (context.Background ())
 
 	if err != nil {
 		return nil, err

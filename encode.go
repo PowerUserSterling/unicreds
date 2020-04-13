@@ -6,6 +6,6 @@ import (
 )
 
 // Encode return the value encoded as a map of dynamo attributes.
-func Encode(rawVal interface{}) (map[string]*dynamodb.AttributeValue, error) {
+func Encode(rawVal interface{}) (map[string]dynamodb.AttributeValue, error) {
 	return dynamodbattribute.MarshalMap(rawVal)
 }

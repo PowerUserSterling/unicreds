@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"context"
 
 	"github.com/apex/log"
 
@@ -18,6 +19,10 @@ import (
 	//"github.com/aws/aws-sdk-go-v2/aws/session"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/dynamodbiface"
+)
+
+const (
+	zoneURL = "http://169.254.169.254/latest/meta-data/placement/availability-zone"
 )
 
 const (
@@ -45,11 +50,11 @@ var (
 )
 
 func init() {
-	dynamoSvc = dynamodb.New(aws.NewConfig())
+	dynamoSvc = dynamodb.New(*aws.NewConfig())
 }
 
 // SetDynamoDBConfig override the default aws configuration
-func SetDynamoDBConfig(config *aws.Config) {
+func SetDynamoDBConfig(config aws.Config) {
 	dynamoSvc = dynamodb.New(config)
 }
 
@@ -122,25 +127,25 @@ func PaddedInt(i int) string {
 func Setup(tableName *string, read *int64, write *int64) (err error) {
 	log.Debug("Running Setup")
 
-	_, err = dynamoSvc.CreateTable(&dynamodb.CreateTableInput{
-		AttributeDefinitions: []*dynamodb.AttributeDefinition{
+	_, err = dynamoSvc.CreateTableRequest(&dynamodb.CreateTableInput{
+		AttributeDefinitions: []dynamodb.AttributeDefinition{
 			{
 				AttributeName: aws.String("name"),
-				AttributeType: aws.String("S"),
+				AttributeType: dynamodb.ScalarAttributeType("S"),
 			},
 			{
 				AttributeName: aws.String("version"),
-				AttributeType: aws.String("S"),
+				AttributeType: dynamodb.ScalarAttributeType("S"),
 			},
 		},
-		KeySchema: []*dynamodb.KeySchemaElement{
+		KeySchema: []dynamodb.KeySchemaElement{
 			{
 				AttributeName: aws.String("name"),
-				KeyType:       aws.String(dynamodb.KeyTypeHash),
+				KeyType:       dynamodb.KeyType(dynamodb.KeyTypeHash),
 			},
 			{
 				AttributeName: aws.String("version"),
-				KeyType:       aws.String(dynamodb.KeyTypeRange),
+				KeyType:       dynamodb.KeyType(dynamodb.KeyTypeRange),
 			},
 		},
 		ProvisionedThroughput: &dynamodb.ProvisionedThroughput{
@@ -148,7 +153,7 @@ func Setup(tableName *string, read *int64, write *int64) (err error) {
 			WriteCapacityUnits: write,
 		},
 		TableName: tableName,
-	})
+	}).Send (context.Background ())
 
 	if err != nil {
 		return
@@ -163,10 +168,10 @@ func Setup(tableName *string, read *int64, write *int64) (err error) {
 func GetHighestVersionSecret(tableName *string, name string, encContext *EncryptionContextValue) (*DecryptedCredential, error) {
 	log.Debug("Getting highest version secret")
 
-	res, err := dynamoSvc.Query(&dynamodb.QueryInput{
+	res, err := dynamoSvc.QueryRequest(&dynamodb.QueryInput{
 		TableName: tableName,
-		ExpressionAttributeNames: map[string]*string{
-			"#N": aws.String("name"),
+		ExpressionAttributeNames: map[string]string{
+			"#N": "name",
 		},
 		ExpressionAttributeValues: map[string]dynamodb.AttributeValue{
 			":name": {
@@ -177,7 +182,7 @@ func GetHighestVersionSecret(tableName *string, name string, encContext *Encrypt
 		Limit:            aws.Int64(1),
 		ConsistentRead:   aws.Bool(true),
 		ScanIndexForward: aws.Bool(false), // descending order
-	})
+	}).Send (context.Background ())
 
 	if err != nil {
 		return nil, err
@@ -209,7 +214,7 @@ func GetSecret(tableName *string, name, version string, encContext *EncryptionCo
 		},
 		TableName: tableName,
 	}
-	res, err := dynamoSvc.GetItem(params)
+	res, err := dynamoSvc.GetItemRequest(params).Send (context.Background ())
 
 	cred := new(Credential)
 
@@ -230,10 +235,10 @@ func GetSecret(tableName *string, name, version string, encContext *EncryptionCo
 func GetHighestVersion(tableName *string, name string) (string, error) {
 	log.WithField("name", name).Debug("Looking up highest version")
 
-	res, err := dynamoSvc.Query(&dynamodb.QueryInput{
+	res, err := dynamoSvc.QueryRequest(&dynamodb.QueryInput{
 		TableName: tableName,
-		ExpressionAttributeNames: map[string]*string{
-			"#N": aws.String("name"),
+		ExpressionAttributeNames: map[string]string{
+			"#N": "name",
 		},
 		ExpressionAttributeValues: map[string]dynamodb.AttributeValue{
 			":name": {
@@ -245,7 +250,7 @@ func GetHighestVersion(tableName *string, name string) (string, error) {
 		ConsistentRead:       aws.Bool(true),
 		ScanIndexForward:     aws.Bool(false), // descending order
 		ProjectionExpression: aws.String("version"),
-	})
+	}).Send (context.Background ())
 
 	if err != nil {
 		return "", err
@@ -255,9 +260,9 @@ func GetHighestVersion(tableName *string, name string) (string, error) {
 		return "", ErrSecretNotFound
 	}
 
-	v := res.Items[0]["version"]
+	v, ok := res.Items[0]["version"]
 
-	if v == nil {
+	if !ok {
 		return "", ErrSecretNotFound
 	}
 
@@ -272,15 +277,15 @@ func ListSecrets(tableName *string, allVersions bool) ([]*Credential, error) {
 	var lastEvaluatedKey map[string]dynamodb.AttributeValue
 
 	for {
-		res, err := dynamoSvc.Scan(&dynamodb.ScanInput{
+		res, err := dynamoSvc.ScanRequest(&dynamodb.ScanInput{
 			TableName: tableName,
-			ExpressionAttributeNames: map[string]*string{
-				"#N": aws.String("name"),
+			ExpressionAttributeNames: map[string]string{
+				"#N": "name",
 			},
 			ProjectionExpression: aws.String("#N, version, created_at"),
 			ConsistentRead:       aws.Bool(true),
 			ExclusiveStartKey:    lastEvaluatedKey,
-		})
+		}).Send (context.Background ())
 		if err != nil {
 			return nil, err
 		}
@@ -317,19 +322,19 @@ func GetAllSecrets(tableName *string, allVersions bool, encContext *EncryptionCo
 	var lastEvaluatedKey map[string]dynamodb.AttributeValue
 
 	for {
-		res, err := dynamoSvc.Scan(&dynamodb.ScanInput{
+		res, err := dynamoSvc.ScanRequest(&dynamodb.ScanInput{
 			TableName: tableName,
-			AttributesToGet: []*string{
-				aws.String("name"),
-				aws.String("version"),
-				aws.String("key"),
-				aws.String("contents"),
-				aws.String("hmac"),
-				aws.String("created_at"),
+			AttributesToGet: []string{
+				"name",
+				"version",
+				"key",
+				"contents",
+				"hmac",
+				"created_at",
 			},
 			ConsistentRead:    aws.Bool(true),
 			ExclusiveStartKey: lastEvaluatedKey,
-		})
+		}).Send (context.Background ())
 		if err != nil {
 			return nil, err
 		}
@@ -425,14 +430,14 @@ func PutSecret(tableName *string, alias, name, secret, version string, encContex
 		return err
 	}
 
-	_, err = dynamoSvc.PutItem(&dynamodb.PutItemInput{
+	_, err = dynamoSvc.PutItemRequest(&dynamodb.PutItemInput{
 		TableName: tableName,
 		Item:      data,
-		ExpressionAttributeNames: map[string]*string{
-			"#N": aws.String("name"),
+		ExpressionAttributeNames: map[string]string{
+			"#N": "name",
 		},
 		ConditionExpression: aws.String("attribute_not_exists(#N)"),
-	})
+	}).Send (context.Background ())
 
 	return err
 }
@@ -441,10 +446,10 @@ func PutSecret(tableName *string, alias, name, secret, version string, encContex
 func DeleteSecret(tableName *string, name string) error {
 	log.Debug("Deleting secret")
 
-	res, err := dynamoSvc.Query(&dynamodb.QueryInput{
+	res, err := dynamoSvc.QueryRequest(&dynamodb.QueryInput{
 		TableName: tableName,
-		ExpressionAttributeNames: map[string]*string{
-			"#N": aws.String("name"),
+		ExpressionAttributeNames: map[string]string{
+			"#N": "name",
 		},
 		ExpressionAttributeValues: map[string]dynamodb.AttributeValue{
 			":name": {
@@ -454,7 +459,7 @@ func DeleteSecret(tableName *string, name string) error {
 		KeyConditionExpression: aws.String("#N = :name"),
 		ConsistentRead:         aws.Bool(true),
 		ScanIndexForward:       aws.Bool(false), // descending order
-	})
+	}).Send (context.Background ())
 
 	if err != nil {
 		return err
@@ -470,7 +475,7 @@ func DeleteSecret(tableName *string, name string) error {
 
 		log.WithFields(log.Fields{"name": cred.Name, "version": cred.Version}).Info("deleting")
 
-		_, err = dynamoSvc.DeleteItem(&dynamodb.DeleteItemInput{
+		_, err = dynamoSvc.DeleteItemRequest(&dynamodb.DeleteItemInput{
 			TableName: tableName,
 			Key: map[string]dynamodb.AttributeValue{
 				"name": {
@@ -480,7 +485,7 @@ func DeleteSecret(tableName *string, name string) error {
 					S: aws.String(cred.Version),
 				},
 			},
-		})
+		}).Send (context.Background ())
 
 		if err != nil {
 			return err
@@ -619,15 +624,15 @@ func waitForTable(tableName *string) error {
 		select {
 		case <-ticker.C:
 			// a read from ch has occurred
-			res, err := dynamoSvc.DescribeTable(&dynamodb.DescribeTableInput{
+			res, err := dynamoSvc.DescribeTableRequest(&dynamodb.DescribeTableInput{
 				TableName: tableName,
-			})
+			}).Send (context.Background ())
 
 			if err != nil {
 				return err
 			}
 
-			if *res.Table.TableStatus == "ACTIVE" {
+			if res.Table.TableStatus == "ACTIVE" {
 				return nil
 			}
 
