@@ -1,7 +1,6 @@
 package unicreds
 
 import (
-	"bytes"
 	"encoding/base64"
 	"errors"
 	"io/ioutil"
@@ -16,7 +15,6 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/awserr"
-	//"github.com/aws/aws-sdk-go-v2/aws/session"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/dynamodbiface"
 )
@@ -68,7 +66,7 @@ type Credential struct {
 	Version   string `dynamodbav:"version"`
 	Key       string `dynamodbav:"key"`
 	Contents  string `dynamodbav:"contents"`
-	Hmac      []byte `dynamodbav:"hmac"`
+	Hmac      string `dynamodbav:"hmac"`
 	CreatedAt int64  `dynamodbav:"created_at"`
 }
 
@@ -419,7 +417,7 @@ func PutSecret(tableName *string, alias, name, secret, version string, encContex
 		Version:   version,
 		Key:       base64.StdEncoding.EncodeToString(wrappedKey),
 		Contents:  b64ctext,
-		Hmac:      b64hmac,
+		Hmac:      string (b64hmac),
 		CreatedAt: time.Now().Unix(),
 	}
 
@@ -522,7 +520,6 @@ func ResolveVersion(tableName *string, name string, version int) (string, error)
 }
 
 func decryptCredential(cred *Credential, encContext *EncryptionContextValue) (*DecryptedCredential, error) {
-
 	wrappedKey, err := base64.StdEncoding.DecodeString(cred.Key)
 
 	if err != nil {
@@ -554,7 +551,7 @@ func decryptCredential(cred *Credential, encContext *EncryptionContextValue) (*D
 
 	hexhmac := ComputeHmac256(contents, hmacKey)
 
-	if !bytes.Equal(hexhmac, cred.Hmac) {
+	if string (hexhmac) != cred.Hmac {//!bytes.Equal(hexhmac, cred.Hmac) {
 		return nil, ErrHmacValidationFailed
 	}
 

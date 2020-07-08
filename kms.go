@@ -15,9 +15,9 @@ func init() {
 }
 
 // SetKMSConfig override the default aws configuration
-/*func SetKMSConfig(config aws.Config) {
+func SetKMSConfig(config aws.Config) {
 	kmsSvc = kms.New(config)
-}*/
+}
 
 /*func SetKMSSession(sess *session.Session) {
 	kmsSvc = kms.New(sess)
